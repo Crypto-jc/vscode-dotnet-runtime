@@ -1,0 +1,64 @@
+import ccxt
+import talib
+import time
+import pandas as pd
+
+# Configuração da API da exchange
+exchange = ccxt.binance({
+    'apiKey': 'SUA_API_KEY',
+    'secret': 'SUA_SECRET_KEY',
+})
+
+# Parâmetros do robô
+symbol = 'BTC/USDT'  # Par de negociação
+timeframe = '5m'     # Intervalo de tempo (5 minutos)
+rsi_period = 14      # Período do RSI
+rsi_overbought = 70  # Limite superior do RSI
+rsi_oversold = 30    # Limite inferior do RSI
+amount_to_trade = 0.001  # Quantidade de BTC para negociar
+
+# Função para obter dados de mercado
+def get_market_data(symbol, timeframe, limit=100):
+    candles = exchange.fetch_ohlcv(symbol, timeframe, limit=limit)
+    df = pd.DataFrame(candles, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
+    df['timestamp'] = pd.to_datetime(df['timestamp'], unit='ms')
+    return df
+
+# Função para calcular o RSI
+def calculate_rsi(data, period):
+    close_prices = data['close'].values
+    rsi = talib.RSI(close_prices, timeperiod=period)
+    return rsi[-1]  # Retorna o último valor do RSI
+
+# Função principal do robô
+def run_bot():
+    print("Iniciando o robô de trading...")
+    while True:
+        try:
+            # Obter dados de mercado
+            market_data = get_market_data(symbol, timeframe)
+
+            # Calcular o RSI
+            rsi_value = calculate_rsi(market_data, rsi_period)
+            print(f"RSI atual: {rsi_value}")
+
+            # Tomar decisão de compra/venda
+            if rsi_value < rsi_oversold:
+                print("Comprando...")
+                order = exchange.create_market_buy_order(symbol, amount_to_trade)
+                print(order)
+            elif rsi_value > rsi_overbought:
+                print("Vendendo...")
+                order = exchange.create_market_sell_order(symbol, amount_to_trade)
+                print(order)
+
+            # Aguardar antes da próxima iteração
+            time.sleep(60)  # Espera 1 minuto antes de verificar novamente
+
+        except Exception as e:
+            print(f"Erro: {e}")
+            time.sleep(60)
+
+# Executar o robô
+if __name__ == "__main__":
+    run_bot()
